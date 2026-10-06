@@ -1,0 +1,145 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ${{ values.component_name }}
+
+  ${{ values.component_description }}
+
+
+Parameters:
+  Domain:
+    Type: String
+    Description: 'Name of Domain'
+
+  System:
+    Type: String
+    Description: "Name of System"
+
+  Component:
+    Type: String
+    Description: "Name of Component"
+
+  CodeBranch:
+    Type: String
+    Description: "Name of GitHub Branch"
+{%- if values.log_level %}
+
+  StateMachineLogRetentionInDays:
+    Type: Number
+    Description: "Number of days to retain state machine logs"
+    Default: 30
+{%- endif %}
+
+
+Resources:
+  ########
+  # Step Functions
+  ########
+  ${{ values.state_machine_name }}StateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: ${{ values.state_machine_type }}
+      DefinitionUri: ./statemachine/${{ values.state_machine_name }}.asl.yaml
+      DefinitionSubstitutions:
+        Domain: !Ref Domain
+        System: !Ref System
+        Component: !Ref Component
+        CodeBranch: !Ref CodeBranch
+{%- if values.log_level %}
+      Logging:
+        Level: ${{ values.log_level }}
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt ${{ values.state_machine_name }}StateMachineLogGroup.Arn
+{%- endif %}
+{%- if values.enable_tracing %}
+      Tracing:
+        Enabled: true
+{%- endif %}
+{%- if values.trigger_type %}
+      Events:
+{%- if values.trigger_type == 'schedule' %}
+        Schedule:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: ${{ values.schedule_expression }}
+{%- elif values.trigger_type == 'eventbridge' %}
+        EventBridgeRule:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - ${{ values.event_pattern_source }}
+{%- if values.event_pattern_detail_type %}
+              detail-type:
+                - ${{ values.event_pattern_detail_type }}
+{%- endif %}
+{%- endif %}
+{%- endif %}
+{%- if values.log_level or values.enable_tracing %}
+      # NOTE: Add policies here for any AWS services the state machine calls.
+      # See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+      Policies:
+{%- if values.log_level %}
+        # Log delivery actions do not support resource-level permissions.
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogDelivery
+                - logs:GetLogDelivery
+                - logs:UpdateLogDelivery
+                - logs:DeleteLogDelivery
+                - logs:ListLogDeliveries
+                - logs:PutResourcePolicy
+                - logs:DescribeResourcePolicies
+                - logs:DescribeLogGroups
+              Resource: '*'
+{%- endif %}
+{%- if values.enable_tracing %}
+        - AWSXrayWriteOnlyAccess
+{%- endif %}
+{%- else %}
+      # NOTE: Add policies here for any AWS services the state machine calls.
+      # See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-policy-templates.html
+      #Policies:
+      #  - LambdaInvokePolicy:
+      #      FunctionName: !Ref MyFunction
+{%- endif %}
+{%- if values.log_level %}
+
+  ${{ values.state_machine_name }}StateMachineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      # The /aws/vendedlogs/ prefix avoids CloudWatch Logs resource policy size limits.
+      LogGroupName: !Sub /aws/vendedlogs/states/${AWS::StackName}-${{ values.state_machine_name }}
+      RetentionInDays: !Ref StateMachineLogRetentionInDays
+{%- endif %}
+
+
+  # SSM Values
+  ${{ values.state_machine_name }}StateMachineArnSsmParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Type: String
+      Description: ARN of ${{ values.state_machine_name }} state machine
+      Name: !Sub /${Domain}/${System}/${Component}/${CodeBranch}/${{ values.state_machine_name }}StateMachineArn
+      Value: !Ref ${{ values.state_machine_name }}StateMachine
+
+  ${{ values.state_machine_name }}StateMachineNameSsmParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Type: String
+      Description: Name of ${{ values.state_machine_name }} state machine
+      Name: !Sub /${Domain}/${System}/${Component}/${CodeBranch}/${{ values.state_machine_name }}StateMachineName
+      Value: !GetAtt ${{ values.state_machine_name }}StateMachine.Name
+
+
+Outputs:
+  ${{ values.state_machine_name }}StateMachineArn:
+    Description: ARN of ${{ values.state_machine_name }} state machine
+    Value: !Ref ${{ values.state_machine_name }}StateMachine
+
+  ${{ values.state_machine_name }}StateMachineName:
+    Description: Name of ${{ values.state_machine_name }} state machine
+    Value: !GetAtt ${{ values.state_machine_name }}StateMachine.Name

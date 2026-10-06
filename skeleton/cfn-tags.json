@@ -1,0 +1,5 @@
+{
+  "org:domain": "${{ values.domain_name }}",
+  "org:system": "${{ values.system_name }}",
+  "org:component": $env.GITHUB_REPOSITORY_NAME_PART_SLUG_CS
+}
