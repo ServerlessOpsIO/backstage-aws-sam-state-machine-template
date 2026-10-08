@@ -20,7 +20,8 @@ metadata:
     - serverless
     - step-functions
     - state-machine
-    - workflow
+    - event-driven
+    - event-handler
 
 spec:
   owner: group:00gjdgxs1ur6lsu
