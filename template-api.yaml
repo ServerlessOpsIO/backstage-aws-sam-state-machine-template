@@ -1,0 +1,375 @@
+---
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: aws-sam-state-machine-api
+  title: AWS Step Functions State Machine API
+  description: |
+    Create an AWS Step Functions state machine started through an API Gateway endpoint, using AWS SAM.
+
+    This template provides the following for the newly created Component
+
+    * Step Functions state machine
+      * With starter Amazon States Language (ASL) definition
+      * With optional CloudWatch Logs logging and X-Ray tracing
+    * AWS API Gateway endpoint that starts the state machine
+      * Synchronous for Express workflows, asynchronous for Standard workflows
+      * Cognito authorization and a custom domain
+    * Starter OpenAPI spec file
+    * GitHub Actions build and deploy workflows
+
+  tags:
+    - aws
+    - serverless
+    - step-functions
+    - state-machine
+    - workflow
+    - api
+
+spec:
+  owner: group:00gjdgxs1ur6lsu
+  type: component
+
+  parameters:
+    - title: Component Information
+      description: Basic information about the component
+      required:
+        - lifecycle
+        - namespace
+        - github_org
+        - name
+        - description
+        - owner
+        - system
+        - domain
+        - environment
+        - account_id
+      properties:
+        lifecycle:
+          title: Lifecycle
+          type: string
+          description: Lifecycle for the component
+          default: production
+          ui:widget: hidden
+        namespace:
+          title: Namespace
+          type: string
+          description: Namespace for the component
+          default: default
+          ui:widget: hidden
+        github_org:
+          title: GitHub Org
+          type: string
+          description: GitHub organization to publish to
+          default: ServerlessOpsIO
+          ui:widget: hidden
+        name:
+          title: Component name
+          type: string
+          description: Unique name of the software repository
+          ui:field: EntityNamePicker
+        description:
+          title: Description
+          type: string
+          description: Short description of the component
+        owner:
+          title: Owner
+          type: string
+          description: |
+            Owning group of entity.
+          ui:field: MyGroupsPicker
+          ui:options:
+            allowArbitraryValues: false
+        domain:
+          title: Domain
+          type: string
+          description: Domain the component belongs to.
+          ui:field: EntityPicker
+          ui:options:
+            allowArbitraryValues: false
+            catalogFilter:
+              - kind: Domain
+        system:
+          title: System
+          type: string
+          description: System the component belongs to.
+          ui:field: SoContextualEntityPicker
+          ui:options:
+            allowArbitraryValues: false
+            catalogFilter:
+              - kind: System
+                relations.partOf: "{{ parameters.domain }}"
+        environment:
+          title: Environment
+          type: string
+          description: Environment the component belongs to.
+          ui:field: SoContextualEntityPicker
+          ui:options:
+            allowArbitraryValues: false
+            catalogFilter:
+              - kind: Resource
+                relations.partOf: "{{ parameters.system }}"
+                spec.type: environment
+        account_id:
+          title: Account ID
+          type: string
+          description: Cloud account to deploy to
+          ui:field: SoContextualEntityPicker
+          ui:options:
+            allowArbitraryValues: false
+            catalogFilter:
+              - kind: Resource
+                relations.dependencyOf: "{{ parameters.environment }}"
+                spec.type: cloud-account
+
+    - title: State Machine Configuration
+      description: Configuration for the state machine to create
+      required:
+        - state_machine_name
+        - state_machine_type
+        - log_level
+      properties:
+        state_machine_name:
+          title: State Machine Name
+          type: string
+          description: Name of the state machine. Used as the CloudFormation logical ID prefix, so use PascalCase.
+          pattern: '^[A-Z][A-Za-z0-9]*$'
+          ui:placeholder: OrderProcessing
+        state_machine_type:
+          title: State Machine Type
+          type: string
+          description: Standard workflows are durable and long-running. Express workflows are high-volume and short-lived (5 minutes max).
+          default: STANDARD
+          enum:
+            - STANDARD
+            - EXPRESS
+          enumNames:
+            - Standard
+            - Express
+        log_level:
+          title: Log Level
+          type: string
+          description: Execution history events to send to CloudWatch Logs
+          default: ERROR
+          enum:
+            - ALL
+            - ERROR
+            - FATAL
+            - "OFF"
+          enumNames:
+            - All
+            - Error
+            - Fatal
+            - "Off"
+        enable_tracing:
+          title: Enable X-Ray Tracing
+          type: boolean
+          description: Enable AWS X-Ray tracing for state machine executions
+          default: false
+
+    - title: API Configuration
+      description: Endpoint that starts the state machine
+      required:
+        - hostname
+        - url_path_prefix
+        - resource_name
+        - http_method
+        - api_description
+      properties:
+        hostname:
+          title: Hostname
+          type: string
+          description: Site FQDN; ex. api.app.serverlessops.io
+        url_path_prefix:
+          title: Path Prefix (without resource name)
+          type: string
+          description: Path prefix for the API; ex. /v1
+          default: '/v1'
+          pattern: '^(/[A-Za-z0-9._~-]+)*$'
+        resource_name:
+          title: Resource Name
+          type: string
+          description: Name of the API resource; eg. <path_prefix>/<resource_name> -> /v1/orders
+          pattern: '^[A-Za-z0-9._~-]+$'
+          ui:placeholder: orders
+        http_method:
+          title: HTTP Method
+          type: string
+          description: HTTP method of the endpoint that starts the state machine
+          default: POST
+          enum:
+            - POST
+            - PUT
+            - PATCH
+            - GET
+            - DELETE
+        api_description:
+          title: API Description
+          type: string
+          description: Description of the API
+          ui:widget: textarea
+
+    - title: Copilot Cloud Agent
+      required: []
+      properties:
+        launch_copilot_agent:
+          title: "Launch Copilot agent?"
+          type: boolean
+          description: Launch a Copilot cloud agent after component creation
+          default: false
+      dependencies:
+        launch_copilot_agent:
+          oneOf:
+            - properties:
+                launch_copilot_agent:
+                  const: false
+            - required:
+                - agent_prompt
+                - github_auth
+              properties:
+                launch_copilot_agent:
+                  const: true
+                agent_prompt:
+                  title: Agent prompt
+                  type: string
+                  description: Initial prompt to send to the Copilot cloud agent
+                  minLength: 1
+                  ui:widget: textarea
+                github_auth:
+                  type: string
+                  ui:field: SoRequestUserCredentials
+                  ui:options:
+                    host: github.com
+                    requestUserCredentials:
+                      secretsKey: USER_GITHUB_TOKEN
+                      additionalScopes:
+                        github:
+                          - read:user
+
+  steps:
+    - id: fetch-domain
+      name: Fetch Domain
+      action: catalog:fetch
+      input:
+        entityRef: ${{ parameters.domain }}
+
+    - id: fetch-system
+      name: Fetch System
+      action: catalog:fetch
+      input:
+        entityRef: ${{ parameters.system }}
+
+    - id: fetch-owner
+      name: Fetch Owner
+      action: catalog:fetch
+      input:
+        entityRef: ${{ parameters.owner }}
+
+    - id: fetch-account
+      name: Fetch Cloud Account
+      action: catalog:fetch
+      input:
+        entityRef: ${{ parameters.account_id }}
+
+    - id: component
+      name: Create Component
+      action: fetch:template
+      input:
+        url: ./skeleton/base
+        values:
+          component_namespace: ${{ parameters.namespace }}
+          lifecycle: ${{ parameters.lifecycle }}
+          domain_entity: ${{ parameters.domain }}
+          domain_name: ${{ parameters.domain | parseEntityRef | pick('name') }}
+          domain_title: ${{ steps['fetch-domain'].output.entity.metadata.title }}
+          system_entity: ${{ parameters.system }}
+          system_name: ${{ parameters.system | parseEntityRef | pick('name') }}
+          system_title: ${{ steps['fetch-system'].output.entity.metadata.title }}
+          component_name: ${{ parameters.name | lower }}
+          component_description: ${{ parameters.description }}
+          owner_name: ${{ parameters.owner | parseEntityRef | pick('name') }}
+          owner_title: ${{ steps['fetch-owner'].output.entity.metadata.title }}
+          github_org: ${{ parameters.github_org }}
+          state_machine_name: ${{ parameters.state_machine_name }}
+          state_machine_type: ${{ parameters.state_machine_type }}
+          log_level: ${{ parameters.log_level if parameters.log_level != 'OFF' else nil }}
+          enable_tracing: ${{ parameters.enable_tracing }}
+          is_api: true
+          api_description: ${{ parameters.api_description }}
+
+    - id: component-api
+      name: Add API Skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton/api
+        values:
+          domain_name: ${{ parameters.domain | parseEntityRef | pick('name') }}
+          system_name: ${{ parameters.system | parseEntityRef | pick('name') }}
+          system_title: ${{ steps['fetch-system'].output.entity.metadata.title }}
+          component_name: ${{ parameters.name | lower }}
+          component_description: ${{ parameters.description }}
+          state_machine_name: ${{ parameters.state_machine_name }}
+          state_machine_type: ${{ parameters.state_machine_type }}
+          log_level: ${{ parameters.log_level if parameters.log_level != 'OFF' else nil }}
+          enable_tracing: ${{ parameters.enable_tracing }}
+          hostname: ${{ parameters.hostname }}
+          url_path_prefix: ${{ parameters.url_path_prefix }}
+          resource_name: ${{ parameters.resource_name }}
+          http_method: ${{ parameters.http_method }}
+          api_description: ${{ parameters.api_description }}
+
+    - id: component-pipeline
+      name: Create Project Pipeline
+      action: fetch:template
+      input:
+        url: ./pipeline
+
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        repoUrl: github.com?repo=${{ parameters.name | lower }}&owner=${{ parameters.github_org }}
+        repoVisibility: public
+        protectDefaultBranch: false
+        requiredApprovingReviewCount: 0
+        description: ${{ parameters.description }}
+        gitAuthorName: ${{ user.entity.spec.profile.displayName }}
+        gitAuthorEmail:  ${{ user.entity.spec.profile.email }}
+        gitCommitMessage: "Initial commit via Backstage"
+        defaultBranch: main
+        secrets:
+          DEPLOYMENT_ACCOUNT_ID: ${{ steps['fetch-account'].output.entity.metadata.title }}
+        customProperties:
+          system: ${{ parameters.system | parseEntityRef | pick('name') }}
+          domain: ${{ parameters.domain | parseEntityRef | pick('name') }}
+          owner: ${{ steps['fetch-owner'].output.entity.metadata.title }}
+
+    - id: register
+      name: Register in Backstage
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: "/catalog-info.yaml"
+
+    - id: launchCopilotAgent
+      name: Launch Copilot agent
+      if: ${{ parameters.launch_copilot_agent }}
+      action: github:copilot:agent:launch
+      input:
+        repoUrl: github.com?repo=${{ parameters.name | lower }}&owner=${{ parameters.github_org }}
+        prompt: ${{ parameters.agent_prompt }}
+        userCredentialsSecretKey: USER_GITHUB_TOKEN
+      secrets:
+        USER_GITHUB_TOKEN: ${{ secrets.USER_GITHUB_TOKEN }}
+
+  output:
+    links:
+      - title: New repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Repository catalog-info.yaml file
+        url: ${{ steps.publish.output.remoteUrl }}/blob/main/catalog-info.yaml
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+      - title: Launched agent task
+        url: ${{ steps.launchCopilotAgent.output.taskUrl if parameters.launch_copilot_agent else nil }}

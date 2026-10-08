@@ -1,0 +1,216 @@
+{%- set is_sync = values.state_machine_type == 'EXPRESS' -%}
+{%- set method = values.http_method | lower -%}
+{%- set has_body = values.http_method in ['POST', 'PUT', 'PATCH'] -%}
+{%- set scope = 'read' if values.http_method == 'GET' else 'write' -%}
+---
+openapi: 3.0.3
+info:
+  title: ${{ values.component_name }}
+  description: |
+    ${{ values.api_description | indent(4) }}
+  version: 1.0.0
+servers:
+  - url:
+      Fn::Sub: "https://${Hostname}"
+    description: Production endpoint
+x-amazon-apigateway-request-validators:
+  all:
+    validateRequestBody: true
+    validateRequestParameters: true
+x-amazon-apigateway-request-validator: "all"
+
+paths:
+  "/health":
+    get:
+      summary: Health check
+      description: Get health of endpoint
+      parameters:
+        - $ref: "#/components/parameters/headerContentTypeJson"
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthCheckResponse"
+      security:
+        - serverlessOpsCognitoPool:
+          - Fn::Sub: https://${Hostname}/health.read
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          "application/json": |
+            {
+              "statusCode": 200
+            }
+        responses:
+          "200":
+            statusCode: 200
+            responseTemplates:
+              "application/json": |
+                {
+                  "healthy": true
+                }
+
+  "${{ values.url_path_prefix }}/${{ values.resource_name }}":
+    ${{ method }}:
+      summary: Start ${{ values.state_machine_name }}
+      description: Start an execution of the ${{ values.state_machine_name }} state machine
+      parameters:
+        - $ref: "#/components/parameters/headerContentTypeJson"
+{%- if has_body %}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExecutionInput"
+{%- endif %}
+      responses:
+{%- if is_sync %}
+        '200':
+          description: The execution succeeded. The body is the state machine output.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionOutput"
+{%- else %}
+        '202':
+          description: The execution started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartExecutionResponse"
+{%- endif %}
+        '400':
+          description: Client failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        '500':
+          description: Server failure{% if is_sync %} or failed execution{% endif %}
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+        - serverlessOpsCognitoPool:
+          - Fn::Sub: https://${Hostname}/${{ values.resource_name }}.${{ scope }}
+      x-amazon-apigateway-integration:
+        type: aws
+        httpMethod: POST
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:states:action/${{ 'StartSyncExecution' if is_sync else 'StartExecution' }}"
+        credentials:
+          Fn::GetAtt: [RestApiIamRole, Arn]
+        passthroughBehavior: never
+        requestTemplates:
+          # Pass the request body to the state machine as its input. Requests without
+          # a body start the state machine with an empty object.
+          "application/json":
+            Fn::Sub: |
+              {
+                "input": "$util.escapeJavaScript($input.json('$')).replaceAll("\\'", "'")",
+                "stateMachineArn": "${${{ values.state_machine_name }}StateMachine}"
+              }
+        responses:
+          "4\\d{2}":
+            statusCode: 400
+            responseTemplates:
+              "application/json": |
+                {
+                  "name": "$util.escapeJavaScript($input.path('$.__type'))",
+                  "message": "$util.escapeJavaScript($input.path('$.message'))"
+                }
+          "5\\d{2}":
+            statusCode: 500
+            responseTemplates:
+              "application/json": |
+                {
+                  "name": "InternalServerError",
+                  "message": "Failed to start the state machine execution"
+                }
+          default:
+{%- if is_sync %}
+            statusCode: 200
+            responseTemplates:
+              # Return the execution output, or an error if the execution did not succeed.
+              "application/json": |
+                #if($input.path('$.status') == "SUCCEEDED")
+                $input.path('$.output')
+                #else
+                #set($context.responseOverride.status = 500)
+                {
+                  "name": "$util.escapeJavaScript($input.path('$.error'))",
+                  "message": "$util.escapeJavaScript($input.path('$.cause'))"
+                }
+                #end
+{%- else %}
+            statusCode: 202
+            responseTemplates:
+              "application/json": |
+                {
+                  "executionArn": "$input.path('$.executionArn')",
+                  "startDate": $input.path('$.startDate')
+                }
+{%- endif %}
+
+components:
+  schemas:
+{%- if has_body %}
+    ExecutionInput:
+      type: object
+      description: Input for the state machine execution
+      additionalProperties: true
+{%- endif %}
+{%- if is_sync %}
+    ExecutionOutput:
+      type: object
+      description: Output of the state machine execution
+      additionalProperties: true
+{%- else %}
+    StartExecutionResponse:
+      type: object
+      properties:
+        executionArn:
+          type: string
+        startDate:
+          type: number
+      required:
+        - executionArn
+{%- endif %}
+    ErrorResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        message:
+          type: string
+      required:
+        - message
+    HealthCheckResponse:
+      type: object
+      properties:
+        healthy:
+          type: boolean
+      required:
+        - healthy
+  parameters:
+    headerContentTypeJson:
+      name: Content-Type
+      in: header
+      schema:
+        type: string
+        default: application/json; charset=utf-8
+  securitySchemes:
+    serverlessOpsCognitoPool:
+      type: apiKey
+      name: Authorization
+      in: header
+      x-amazon-apigateway-authtype: COGNITO_USER_POOLS
+      x-amazon-apigateway-authorizer:
+        type: COGNITO_USER_POOLS
+        providerARNs:
+          - Ref: CognitoUserPoolArn
+        identitySource: method.request.header.Authorization

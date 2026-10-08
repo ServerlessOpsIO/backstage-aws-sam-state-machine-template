@@ -279,7 +279,35 @@ spec:
       name: Create Component
       action: fetch:template
       input:
-        url: ./skeleton
+        url: ./skeleton/base
+        values:
+          component_namespace: ${{ parameters.namespace }}
+          lifecycle: ${{ parameters.lifecycle }}
+          domain_entity: ${{ parameters.domain }}
+          domain_name: ${{ parameters.domain | parseEntityRef | pick('name') }}
+          domain_title: ${{ steps['fetch-domain'].output.entity.metadata.title }}
+          system_entity: ${{ parameters.system }}
+          system_name: ${{ parameters.system | parseEntityRef | pick('name') }}
+          system_title: ${{ steps['fetch-system'].output.entity.metadata.title }}
+          component_name: ${{ parameters.name | lower }}
+          component_description: ${{ parameters.description }}
+          owner_name: ${{ parameters.owner | parseEntityRef | pick('name') }}
+          owner_title: ${{ steps['fetch-owner'].output.entity.metadata.title }}
+          github_org: ${{ parameters.github_org }}
+          state_machine_name: ${{ parameters.state_machine_name }}
+          state_machine_type: ${{ parameters.state_machine_type }}
+          log_level: ${{ parameters.log_level if parameters.log_level != 'OFF' else nil }}
+          enable_tracing: ${{ parameters.enable_tracing }}
+          trigger_type: ${{ parameters.trigger_type if parameters.trigger_type != 'NONE' else nil }}
+          schedule_expression: ${{ parameters.schedule_expression }}
+          event_pattern_source: ${{ parameters.event_pattern_source }}
+          event_pattern_detail_type: ${{ parameters.event_pattern_detail_type }}
+
+    - id: component-event
+      name: Add Event Trigger Skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton/event
         values:
           component_namespace: ${{ parameters.namespace }}
           lifecycle: ${{ parameters.lifecycle }}
