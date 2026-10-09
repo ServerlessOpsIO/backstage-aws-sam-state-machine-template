@@ -54,7 +54,7 @@ Both templates prompt for:
 - target AWS account
 - state machine name and type (Standard or Express)
 - log level and whether to enable X-Ray tracing
-- optionally, a prompt for a GitHub Copilot cloud agent
+- optionally, whether to launch a GitHub Copilot cloud agent, and either a prompt for it or, with Spec Kit, a description of the project's principles for its constitution
 
 `template.yaml` also asks for the trigger type: none, schedule, or EventBridge rule.
 
@@ -65,9 +65,10 @@ The templates then:
 1. fetch related catalog entities,
 2. copy the project skeleton,
 3. create the deployment pipeline files,
-4. publish the repository to GitHub,
-5. register the generated component in the Backstage catalog, and
-6. optionally launch a Copilot cloud agent on the new repository.
+4. optionally initialize [Spec Kit](https://github.com/github/spec-kit) in the project,
+5. publish the repository to GitHub,
+6. register the generated component in the Backstage catalog, and
+7. optionally launch a Copilot cloud agent on the new repository. With Spec Kit, the agent creates the project's Spec Kit constitution; otherwise, it works on your prompt.
 
 ## Prerequisites for the API template
 

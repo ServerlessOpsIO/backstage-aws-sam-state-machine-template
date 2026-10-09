@@ -224,17 +224,15 @@ spec:
                 launch_copilot_agent:
                   const: false
             - required:
-                - agent_prompt
                 - github_auth
               properties:
                 launch_copilot_agent:
                   const: true
-                agent_prompt:
-                  title: Agent prompt
-                  type: string
-                  description: Initial prompt to send to the Copilot cloud agent
-                  minLength: 1
-                  ui:widget: textarea
+                initialize_speckit:
+                  title: "Initialize Spec Kit?"
+                  type: boolean
+                  description: Initialize Spec Kit in the generated project workspace
+                  default: false
                 github_auth:
                   type: string
                   ui:field: SoRequestUserCredentials
@@ -245,6 +243,43 @@ spec:
                       additionalScopes:
                         github:
                           - read:user
+              dependencies:
+                initialize_speckit:
+                  oneOf:
+                    - required:
+                        - agent_prompt
+                      properties:
+                        initialize_speckit:
+                          const: false
+                        agent_prompt:
+                          title: Agent prompt
+                          type: string
+                          description: Initial prompt to send to the Copilot cloud agent
+                          minLength: 1
+                          ui:widget: textarea
+                    - required:
+                        - speckit_constitution
+                      properties:
+                        initialize_speckit:
+                          const: true
+                        speckit_constitution:
+                          title: Spec Kit constitution
+                          type: string
+                          description: Describe the project and principles for its Spec Kit constitution
+                          minLength: 1
+                          ui:widget: textarea
+                          default: |
+                            This is an AWS Step Functions state machine defined with AWS SAM and
+                            triggered through an AWS API Gateway endpoint. Its workflow is
+                            written in Amazon States Language and it calls other AWS services
+                            directly where possible.
+
+                            Please follow these principles:
+
+                            * When adding new functionality prefer additional state machine steps over creating Lambda functions
+                            * Ensure that all state machine steps are idempotent and handle errors gracefully
+                            * All errors should be logged
+                            * Maintain clear and concise documentation for each state machine step
 
   steps:
     - id: fetch-domain
@@ -324,6 +359,11 @@ spec:
       input:
         url: ./pipeline
 
+    - id: initialize-speckit
+      if: ${{ parameters.launch_copilot_agent and parameters.initialize_speckit }}
+      name: Initialize Spec Kit
+      action: github:copilot:speckit:init
+
     - id: publish
       name: Publish to GitHub
       action: publish:github
@@ -351,13 +391,25 @@ spec:
         repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
         catalogInfoPath: "/catalog-info.yaml"
 
-    - id: launchCopilotAgent
+    - id: launch-copilot-agent
       name: Launch Copilot agent
-      if: ${{ parameters.launch_copilot_agent }}
+      if: ${{ parameters.launch_copilot_agent and not parameters.initialize_speckit }}
       action: github:copilot:agent:launch
       input:
         repoUrl: github.com?repo=${{ parameters.name | lower }}&owner=${{ parameters.github_org }}
         prompt: ${{ parameters.agent_prompt }}
+        userCredentialsSecretKey: USER_GITHUB_TOKEN
+      secrets:
+        USER_GITHUB_TOKEN: ${{ secrets.USER_GITHUB_TOKEN }}
+
+    - id: create-speckit-constitution
+      name: Create Spec Kit constitution
+      if: ${{ parameters.launch_copilot_agent and parameters.initialize_speckit }}
+      action: github:copilot:speckit:constitution
+      input:
+        repoUrl: github.com?repo=${{ parameters.name | lower }}&owner=${{ parameters.github_org }}
+        prompt: ${{ parameters.speckit_constitution }}
+        createPullRequest: true
         userCredentialsSecretKey: USER_GITHUB_TOKEN
       secrets:
         USER_GITHUB_TOKEN: ${{ secrets.USER_GITHUB_TOKEN }}
@@ -372,4 +424,6 @@ spec:
         icon: catalog
         entityRef: ${{ steps.register.output.entityRef }}
       - title: Launched agent task
-        url: ${{ steps.launchCopilotAgent.output.taskUrl if parameters.launch_copilot_agent else nil }}
+        url: ${{ steps['launch-copilot-agent'].output.taskUrl if parameters.launch_copilot_agent and not parameters.initialize_speckit else nil }}
+      - title: Spec Kit constitution task
+        url: ${{ steps['create-speckit-constitution'].output.taskUrl if parameters.launch_copilot_agent and parameters.initialize_speckit else nil }}
