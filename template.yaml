@@ -285,6 +285,7 @@ spec:
                             * Ensure that all state machine steps are idempotent and handle errors gracefully
                             * All errors should be logged
                             * Maintain clear and concise documentation for each state machine step
+                            * When creating a new feature, evaluate the feature against the project handbook in docs/handbook/ and update the handbook if the feature changes what it describes
 
   steps:
     - id: fetch-domain
