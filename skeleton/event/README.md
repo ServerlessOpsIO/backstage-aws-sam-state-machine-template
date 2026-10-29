@@ -3,6 +3,11 @@
 ${{ values.component_description }}
 
 
+The [project handbook](docs/handbook/00-index.md) covers features, project creation,
+configuration, architecture, CI/CD, observability, and common development tasks.
+It is also available in the component's **Docs** tab when Backstage TechDocs is enabled.
+
+
 ## New Project Getting Started
 This repository was generated from a template intended to get a new AWS Step Functions state machine up and running quickly. It uses the [AWS Serverless Application Model (SAM)](https://aws.amazon.com/serverless/sam/) to define the infrastructure as code.
 
@@ -13,6 +18,7 @@ This repository was generated from a template intended to get a new AWS Step Fun
 - [`cfn-parameters.json`](cfn-parameters.json): parameter values used when the stack is deployed.
 - [`cfn-tags.json`](cfn-tags.json): tags applied to the deployed stack.
 - [`.github/workflows/`](.github/workflows/): GitHub Actions workflows that validate, build, and deploy the stack.
+- [`mkdocs.yml`](mkdocs.yml) and [`docs/handbook/`](docs/handbook/00-index.md): the project handbook, published through Backstage TechDocs.
 
 ### State machine
 

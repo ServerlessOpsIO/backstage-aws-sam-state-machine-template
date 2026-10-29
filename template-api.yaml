@@ -331,6 +331,11 @@ spec:
           enable_tracing: ${{ parameters.enable_tracing }}
           is_api: true
           api_description: ${{ parameters.api_description }}
+          # The handbook in skeleton/base describes the endpoint.
+          hostname: ${{ parameters.hostname }}
+          url_path_prefix: ${{ parameters.url_path_prefix }}
+          resource_name: ${{ parameters.resource_name }}
+          http_method: ${{ parameters.http_method }}
 
     - id: component-api
       name: Add API Skeleton

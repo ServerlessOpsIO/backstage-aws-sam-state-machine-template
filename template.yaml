@@ -338,6 +338,7 @@ spec:
           schedule_expression: ${{ parameters.schedule_expression }}
           event_pattern_source: ${{ parameters.event_pattern_source }}
           event_pattern_detail_type: ${{ parameters.event_pattern_detail_type }}
+          is_api: false
 
     - id: component-event
       name: Add Event Trigger Skeleton

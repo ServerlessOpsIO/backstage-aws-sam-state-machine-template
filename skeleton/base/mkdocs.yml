@@ -1,0 +1,13 @@
+site_name: '${{ values.component_name }} handbook'
+site_description: 'Handbook for the generated AWS Step Functions state machine'
+plugins:
+  - techdocs-core
+nav:
+  - Handbook: handbook/00-index.md
+  - Features: handbook/01-features.md
+  - Creating a component: handbook/02-creating-a-component.md
+  - Configuration: handbook/03-configuration.md
+  - Architecture: handbook/04-architecture.md
+  - CI/CD pipeline: handbook/05-ci-cd.md
+  - Observability: handbook/06-observability.md
+  - Common tasks: handbook/07-common-tasks.md

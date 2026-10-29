@@ -6,6 +6,7 @@ metadata:
   description: ${{ values.component_description }}
   annotations:
     github.com/project-slug: ${{ values.github_org }}/${{ values.component_name }}
+    backstage.io/techdocs-ref: dir:.
 spec:
   type: service
   lifecycle: ${{ values.lifecycle }}

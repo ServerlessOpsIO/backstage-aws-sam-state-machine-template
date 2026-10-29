@@ -22,6 +22,7 @@ Both templates generate a new repository with:
 - Backstage catalog metadata in `catalog-info.yaml`
 - Standard project files such as `.gitignore`, `samconfig.toml`, and deployment parameter/tag config
 - A starter `README.md` for the generated project
+- A developer handbook in `docs/handbook/`, with an `mkdocs.yml` and the `backstage.io/techdocs-ref` annotation so it appears in the component's **Docs** tab in Backstage
 - GitHub Actions workflows for build and deployment via AWS SAM
 
 `template.yaml` adds an optional EventBridge Scheduler schedule or EventBridge rule trigger.
@@ -38,7 +39,7 @@ Both templates generate a new repository with:
 
 - `template.yaml`: the scaffolder template for an event-triggered state machine
 - `template-api.yaml`: the scaffolder template for a state machine started through API Gateway
-- `skeleton/base/`: files copied into every generated project
+- `skeleton/base/`: files copied into every generated project, including the developer handbook in `docs/handbook/`
 - `skeleton/event/`: SAM template, README, and parameters for `template.yaml`
 - `skeleton/api/`: SAM template, OpenAPI document, README, and parameters for `template-api.yaml`
 - `pipeline/`: GitHub Actions pipeline templates used by the generated project
@@ -69,6 +70,10 @@ The templates then:
 5. publish the repository to GitHub,
 6. register the generated component in the Backstage catalog, and
 7. optionally launch a Copilot cloud agent on the new repository. With Spec Kit, the agent creates the project's Spec Kit constitution; otherwise, it works on your prompt.
+
+## Prerequisites for the handbook
+
+The generated handbook is published through Backstage TechDocs. The Backstage instance needs the TechDocs frontend and backend enabled, and a documentation builder with MkDocs and `mkdocs-techdocs-core`. The generated workflows do not build or publish documentation. Without TechDocs, the handbook can still be read in GitHub.
 
 ## Prerequisites for the API template
 
